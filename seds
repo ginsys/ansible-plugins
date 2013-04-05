@@ -139,7 +139,7 @@ wont_change() {
 
 modify_dest() {
   sed -i -e "${SCRIPT}" "$dest" 2>/dev/null
-  [ $? ! -eq 0 ] && fail "failed modifying $dest with \"$SCRIPT\""
+  [ $? -ne 0 ] && fail "failed modifying $dest with \"$SCRIPT\""
   }
 
 main() {

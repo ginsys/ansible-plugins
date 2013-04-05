@@ -1,0 +1,163 @@
+#!/bin/bash -x
+
+# Ansible module to sed a file with an 's' script.
+# (c) 2013, Serge van Ginderachter <serge@vanginderachter.be>
+# 
+# This file is part of Ansible
+# 
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+
+DOCUMENTATION="
+---
+"
+
+EXAMPLES="
+---
+"
+
+# Generic functions
+
+fail() {
+  local msg="$1"
+  echo "failed=True msg=\"$msg\""
+  # ansible doesn't care (yet) about module exit code
+  exit 1
+}
+
+changed() {
+  local msg="$1"
+  local lines="$2"
+  echo "changed=True msg=\"$msg\" lines=\"$lines\""
+  exit 0
+}
+
+ok() {
+  local msg="$1"
+  echo "changed=False"
+  exit 0
+}
+
+booleanify() {
+  local bool=$1
+
+  # list of possible boolean equivalent strings
+  BOOLEANS_TRUE="y Y yes Yes YES true True TRUE 0 on On ON"
+
+  rc=1
+  for b in $BOOLEANS_TRUE
+  do  
+      if [ "$bool" = "$b" ]
+      then  # found boolean_true
+	    rc=0
+      fi
+
+      # stop looping if we found one
+      [ $rc = 0 ] && break
+  done
+
+  return $rc
+  }
+
+src_readable() {
+  if [ -r "${src}" ]
+  then	return 0
+  else	return 1
+  fi
+  }
+
+dest_writeable() {
+  if [ -w "${dest}" ]
+  then	return 0
+  else	return 1
+  fi
+  }
+
+# start here to customize your own module
+
+parse_args() {
+
+  # evaluate the parameter file prepared by ansible
+  local paramfile=$1
+  [ -r "$paramfile" ] && eval $(sed -e "s/\s?\([^=]+\)\s?=\s?\(\x22\([^\x22]+\)\x22|\x27\([^\x27]+\)\x27|\(\S+\)\)\s?/\1='\2'/p" $paramfile)
+
+  # destination aka file to be modified must exist
+  [ -z "${dest}" ] && fail "destination file must be defined at dest="
+
+  # regexp must exist or we have nothing to do
+  [ -z "${regexp}" ] && fail "pattern must be defined at regexp="
+
+  # replace may be empty; yes, this is redundant
+  replace=${replace:=}
+
+  # thirsty is boolean and default false
+  # if thirsty then set to 'g' else '' as sed s script extension
+  thirsty=${thirsty:=1}
+  if booleanify ${thirsty}
+  then  thirsty='g'
+  else  thirsty=''
+  fi
+
+  }
+
+find_delimiter() {
+  local delimiters="/ @ # % + = _ & [ ] 0 1 2 3 4 5 6 7 8 9"
+  found=1
+  for del in ${delimiters}
+  do  if [ "${regexp}" = "${regexp/${del}}" \
+        -a "${replace}" = "${replace/${del}}" ]
+      then # found one!
+        found=0
+        break
+      fi
+  done
+  [ $found -eq 1 ] && fail "could not find a unique delimiter for sed; expand \$delimiters"
+  }
+
+build_script() {
+  SCRIPT="s${del}${regexp}${del}${replace}${del}${thirsty}"
+  }
+
+wont_change() {
+  # if sed prints zero lines, then $SCRIPT changes nothing 
+  chlines=$(sed -n -e "${SCRIPT}p" "$dest" | wc -l) 2>/dev/null
+  [ $? -ne 0 ] && fail "error in \"$SCRIPT\" ?"
+
+  # $chlines is also global
+  return $chlines
+  }
+
+modify_dest() {
+  sed -i -e "${SCRIPT}" "$dest" 2>/dev/null
+  [ $? ! -eq 0 ] && fail "failed modifying $dest with \"$SCRIPT\""
+  }
+
+main() {
+  parse_args $args
+  dest_writeable || fail "dest must be writeable"
+
+  find_delimiter
+  build_script
+  
+  if wont_change
+  then ok "no changes"
+  else modify_dest
+       changed "$chlines lines(s) changed in $dest" $chlines
+  fi
+  }
+
+trap "fail 'We got killed!'" SIGINT SIGTERM
+args="$*"
+
+main
+

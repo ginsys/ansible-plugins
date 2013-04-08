@@ -144,7 +144,7 @@ modify_dest() {
 
 main() {
   parse_args $args
-  dest_writeable || fail "dest must be writeable"
+  dest_writeable || fail "dest must be exist and be writeable"
 
   find_delimiter
   build_script

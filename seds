@@ -20,10 +20,40 @@
 
 DOCUMENTATION="
 ---
+module: seds
+short_description: module to sed a file with an 's' script
+description:
+    - to run 's/${regexp/{replace}/' on a file
+    - optionally add the 'thirsty' g option at the end of the sed script
+version_added: null
+author: Serge van Ginderachter <serge@vanginderachter.be>
+notes: This is a Bash module
+requirements: null
+options:
+    dest:
+        description: the file that will be modified by sed 
+        required: true
+        default: null
+    regexp:
+        description: the regular expression by which sed will select the part to change
+        required: true
+        default: null
+    replace: 
+        description: the expression by which sed will replace the regexp, can be an empty string
+        required: false
+        default: empty string
+    thirsty: 
+        description: 
+        - a boolean, whether sed will replace multiple instances of the regexp on the same line
+        - sets the 'g' modiier at the end of the sed s script
+        choices: [true, false]
 "
 
 EXAMPLES="
 ---
+examples:
+    - code: seds dest=somefile regexp=deletethistring thirsty=yes
+      description: delete all occureences of 'deletethisstring' on every line in 'somefile'
 "
 
 # Generic functions

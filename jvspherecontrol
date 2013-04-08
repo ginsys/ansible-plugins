@@ -1,0 +1,63 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# (c) 2013, Serge van Ginderachter <serge@vanginderachter.be
+#
+# This file is part of Ansible
+#
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+
+DOCUMENTATION = '''
+---
+author: Serge van Ginderachter
+module: jvspherecontrol
+short_description: A wrapper module to Patrick Debois' jvspherecontrol
+description:
+  - This module manages (some) features of Patrick Debois' jvspherecontrol
+  - which is an interface to the VMWare vsphere API
+  - see https://github.com/jedi4ever/jvspherecontrol
+version_added: "1.2"
+options:
+  vg:
+    description:
+    - The name of the volume group.
+    required: true
+    choices: [ "present", "absent" ]
+notes:
+requirements:
+'''
+EXAMPLES = '''
+# Create a volume group on top of /dev/sda1 with physical extent size = 32MB.
+lvg vg=vg.services pvs=/dev/sda1 pesize=32
+'''
+
+def ():
+    return
+
+def main():
+    module = AnsibleModule(
+        argument_spec = dict(
+            =dict(required=True),
+            =dict(type='list'),
+            =dict(type='int', default=4),
+            state=dict(choices=["absent", "present"], default='present'),
+            force=dict(type='bool', default='no'),
+        ),
+        supports_check_mode=True,
+    )
+
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()

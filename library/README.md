@@ -10,5 +10,5 @@ Inventory plugins are best written in Python, but could be in any language you l
 
 + `inventory_plugins`    (No part of ansible's base code; [as described in ansible's api docs](https://github.com/ansible/ansible/blob/devel/docsite/latest/rst/api.rst#external-inventory-scripts))
     + `seds`: a simple bash plugin which runs a `sed 's'` command
-    + `jvspherecontrol: a python plugin as a frontend to [Patrick Debois' jvspherecontrol](https://github.com/jedi4ever/jvspherecontrol)
+    + `jvspherecontrol`: a python plugin as a frontend to [Patrick Debois' jvspherecontrol](https://github.com/jedi4ever/jvspherecontrol)
 

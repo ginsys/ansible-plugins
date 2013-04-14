@@ -23,3 +23,9 @@ filter_loader     = PluginLoader('FilterModule',   'ansible.runner.filter_plugin
 + `vars_plugins/`
 + `filter_plugins/`
 + `inventory_plugins`    (No part of ansible's base code; [as described in ansible's api docs](https://github.com/ansible/ansible/blob/devel/docsite/latest/rst/api.rst#external-inventory-scripts))
+
+contributing
+============
+
+If you'd like to contribute your modules, or patch existent modules, please send a pull request.
+Be sure however to send your pull request from a **feature branch**, derived from my `devel` branch.

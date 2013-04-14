@@ -4,7 +4,7 @@ ansible-plugins
 My custom modules for ansible (https://github.com/ansible/ansible) configuration management: 
 a multi-node deployment/orchestration, and remote task execution system.
 
-This repo isordered by the subdirectories as mentioned in ansible's lib/ansible/utils/plugins.py
+This repo is ordered by the subdirectories as mentioned in ansible's lib/ansible/utils/plugins.py
 ```python
 action_loader     = PluginLoader('ActionModule',   'ansible.runner.action_plugins',     C.DEFAULT_ACTION_PLUGIN_PATH,           'action_plugins')
 callback_loader   = PluginLoader('CallbackModule', 'ansible.callback_plugins',          C.DEFAULT_CALLBACK_PLUGIN_PATH,   'callback_plugins')

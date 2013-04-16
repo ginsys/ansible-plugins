@@ -42,7 +42,8 @@ def vars_files(vars_dir, name):
     except OSError:
         return files
     for f in candidates:
-        if os.path.isfile(f) and vars_file_matches(f, name):
+        if os.path.isfile(f) and (os.path.split(os.path.dirname(f))[1] 
+                not in ['group_vars', 'host_vars']) and vars_file_matches(f, name):
             files.append(f)
         elif os.path.isdir(f):
             files.extend(vars_files(f, name))

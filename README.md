@@ -28,4 +28,8 @@ contributing
 ============
 
 If you'd like to contribute your modules, or patch existent modules, please send a pull request.
-Be sure however to send your pull request from a **feature branch**, derived from my `devel` branch.
+Be sure however 
+* to send your pull request from a **feature branch**, derived from the `devel` branch
+* one (set of) plugin file(s) per commit only!
+  * e.g. a set: action_plugins and library/ modules form a pair
+

@@ -181,8 +181,12 @@ main() {
   
   if wont_change
   then ok "no changes"
-  else modify_dest
-       changed "$chlines lines(s) changed in $dest" $chlines
+  elif [ "$CHECKMODE" != "True" ]
+  then
+	modify_dest
+        changed "$chlines lines(s) changed in $dest" $chlines
+  else
+        changed "$chlines lines(s) changed in $dest" $chlines
   fi
   }
 

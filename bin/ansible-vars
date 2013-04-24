@@ -21,6 +21,7 @@
 ########################################################
 
 import sys
+import yaml
 
 import ansible.constants as C
 from ansible import utils
@@ -51,6 +52,12 @@ class Cli(object):
             help="dump out a list of hosts matching input pattern, does not execute any modules!")
         parser.add_option('-l', '--limit', default=C.DEFAULT_SUBSET, dest='subset',
             help='further limit selected hosts to an additional pattern')
+
+        parser.add_option('-y', '--yaml', dest='yaml', action='store_true',
+            help="dump out variables in yaml format")
+
+        parser.add_option('-j', '--json', dest='json', action='store_true',
+            help="dump out variables in json format (default)")
 
         options, args = parser.parse_args()
         if len(args) == 0 or len(args) > 1:
@@ -91,9 +98,12 @@ if __name__ == '__main__':
     (options, args) = cli.parse()
     try:
         results = cli.run(options, args)
-        print utils.jsonify(results, format=True)
     except errors.AnsibleError, e:
         # Generic handler for ansible specific errors
         print "ERROR: %s" % str(e)
         sys.exit(1)
+    if options.json and not options.yaml:
+        print utils.jsonify(results, format=True)
+    else:
+        print yaml.dump(results)
 

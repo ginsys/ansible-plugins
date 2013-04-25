@@ -1,0 +1,252 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# (c) 2013, Serge van Ginderachter <serge@vanginderachter.be>
+#
+# This file is part of Ansible
+#
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+
+DOCUMENTATION = '''
+---
+module: check_service
+author: Serge van Ginderachter
+version_added: "1.2"
+short_description: Check processes and maybe kill them
+description:
+    - Checks (number of) running processes for a given command argument
+    - Can kill those matching processes, with increasing kill signal priority
+options:
+    name:
+        required: true
+        description:
+        - Name of the process, a substring to look for as would be 
+          found in the output of the I(ps) command.
+        - Matches against full process argument string (as per pkill -f)
+    count:
+        required: false
+        description:
+        - exact number of processes that should be found in the process list
+        - if 0, processess will be killed; 
+          this is the only case where action is taken to modify the target system
+        - use of count excludes use of mincount or maxcount
+    mincount:
+        required: false
+        default: 0
+        description:
+        - minimum number of processes that should be found in the process list
+        - if set, module will fail if less processes are found
+    maxcount:
+        required: false
+        description:
+        - maximum number of processes that should be found in the process list
+        - if set, module will fail if more processes are found
+    wait:
+        required: false
+        default: 1
+        description: 
+        - time to wait for process to disappear from the process list after
+          receiving a kill signal
+    killsignals:
+        required: false
+        default: SIGTERM,SIGSTOP,SIGKILL
+        description:
+        - comma-separated ordered list of signals(7), used to sequentially
+          terminate the process when count is set to 0
+
+examples:
+    - description: 
+      code: "check_process: name="
+'''
+
+import platform
+import time
+
+KILLSIGNALS = 'SIGTERM,SIGSTOP,SIGKILL'
+
+
+def get_pids(module):
+    ''' returns a list of pid's matching the name pattern'''
+
+    pattern = module.params['name']
+
+    # Find ps binary
+    psbin = module.get_bin_path('ps', True)
+
+    # Set ps flags
+    if platform.system() == 'SunOS':
+        psflags = '-ef'
+    else:
+        psflags = 'auxww'
+
+    # run ps command
+    cmd = '%s %s' % (psbin, psflags)
+    (rc, out, err) = module.run_command(cmd)
+    if rc != 0:
+        module.fail_json(msg='Fatal error running command %s' % cmd, stdout=out, stderr=err)
+
+    # parse ps output into list of pid's
+    pids = []
+    lines = out.split("\n")
+    for line in lines:
+        # exclude ps itself, hacking/test-module script and ps output header
+        if pattern in line and not "name=" in line and not 'PID' in line:
+            # add second PID column to list
+            pids.extend([line.split()[1]])
+    return pids
+
+
+def kill_process(module, pids, signal):
+    # Find kill binary
+    killbin = module.get_bin_path('kill', True)
+
+    # put pid list in a space separate string
+    pids_str = ' '.join(str(x) for x in pids )
+
+    # kill --signal <signal> <pid1 pid2  ...>
+    cmd = '%s --signal %s %s' % (killbin, signal, pids_str)
+    (rc, out, err) = module.run_command(cmd)
+
+
+def main():
+    # load ansible module object
+    module = AnsibleModule(
+        argument_spec = dict(
+            name = dict(required=True),
+            count = dict(required=False, default=None, type='int'),
+            mincount = dict(required=False, type='int'),
+            maxcount = dict(required=False, type='int'),
+            wait = dict(required=False, default=1, type='int'),
+            killsignals = dict(required=False, default=KILLSIGNALS)
+        ),  
+        supports_check_mode=True,
+        mutually_exclusive=[['count', 'mincount'], ['count', 'maxcount']],
+        required_one_of=[['count', 'mincount' , 'maxcount']]
+    )   
+
+    #retrieve some module parameters
+    p = module.params
+
+    name = p['name']
+    count = p['count']
+    mincount = p['mincount']
+    maxcount = p['maxcount']
+    wait = module.params['wait']
+    # convert comma separated kilsignals into list
+    killsignals = module.params['killsignals'].split(',')
+
+    # return json dict 
+    result = {}
+    result['name'] = name
+
+    # retrieve pids matching the name pattern
+    pids = get_pids(module)
+
+    # set number of running processes we found
+    running = len(pids)
+    result['running'] = running
+
+    # set default changed false; is only true when we killed
+    result['changed'] = False
+
+    # if count is set
+    if count is not None:
+        result['count'] = count
+
+        # kill! kill! kill!
+        if count == 0:
+            if running == 0:
+                # nothing to do
+                still_running = 0
+            elif module.check_mode:
+                # there are active processes, we are in check mode, 
+                # so we assume all go killed
+                still_running = 0
+            elif not module.check_mode:
+                # there are active processes so now really kill them all
+                # loop through the kill signals in order, and try killing the process(es)
+                for signal in killsignals:
+                    kill_process(module, pids, signal)
+                    # wait for processes to shut down
+                    time.sleep(wait)
+                    # still running after kill?
+                    pids = get_pids(module)
+                    still_running = len(pids)
+                    if still_running == 0:
+                        break
+            killed = running - still_running
+            result['still_running'] = still_running
+            result['killed'] = killed
+            result['msg'] = 'killed %s processes' % killed
+
+            # changed is only true when we killed
+            if killed != 0:
+                result['changed'] = True
+
+            # if we killed as much as was running, exit ok
+            if killed == running:
+                module.exit_json(**result)
+            else:
+                module.fail_json(**result)
+
+        # check if we have the right number of running processes
+        elif count > 0:
+            if count == running:
+                result['msg'] = 'Number of running processes (%s) is equal to %s' % (running, count)
+                module.exit_json(**result)
+            else:
+                result['msg'] = 'Number of running processes (%s) is not equal to %s' % (running, count)
+                module.fail_json(**result)
+
+        else:
+            result['msg'] = 'count cannot be negative'
+            module.fail_json(**result)
+
+    # check with mincount and/or maxcount
+    elif mincount is not None and maxcount is not None:
+        result['mincount'] = mincount
+        result['maxcount'] = maxcount
+        if mincount <= running <= maxcount:
+            result['msg'] = 'Number of running processes (%s) is in the range %s -> %s.' % (running, mincount, maxcount)
+            module.exit_json(**result)
+        else:
+            result['msg'] = 'Number of running processes (%s) is not in the range %s -> %s.' % (running, mincount, maxcount)
+            module.fail_json(**result)
+    elif mincount is not None:
+        result['mincount'] = mincount
+        if mincount <= running:
+            result['changed'] = False
+            result['msg'] = 'Number of running processes (%s) is larger than %s' % (running, mincount)
+            module.exit_json(**result)
+        else:
+            result['msg'] = 'Number of running processes (%s) is smaller than %s' % (running, mincount)
+            module.fail_json(**result)
+    elif maxcount is not None:
+        result['maxcount'] = maxcount
+        if running <= maxcount:
+            result['changed'] = False
+            result['msg'] = 'Number of running processes (%s) is smaller than %s' % (running, maxcount)
+            module.exit_json(**result)
+        else:
+            result['msg'] = 'Number of running processes (%s) is larger than %s' % (running, maxcount)
+            module.fail_json(**result)
+
+    result['msg'] = "Unknown error, this is not supposed to get here"
+    module.fail_json(**result)
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+
+main()
+

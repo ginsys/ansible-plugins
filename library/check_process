@@ -54,7 +54,7 @@ options:
           if set, module will fail if more processes are found
     wait:
         required: false
-        default: 1
+        default: 2
         description: 
         - time in seconds to wait before checking the process list again, 
           for process(es) to disappear from the process list, after receiving 
@@ -121,7 +121,115 @@ def kill_process(module, pids, signal):
 
     # kill --signal <signal> <pid1 pid2  ...>
     cmd = '%s --signal %s %s' % (killbin, signal, pids_str)
+    print cmd
     (rc, out, err) = module.run_command(cmd)
+
+
+def kill_process_wait(module, pids, signal):
+    kill_process(module, pids, signal)
+
+    t0 = time.time()
+    while 1:
+        pids = get_pids(module)
+        running = len(pids)
+        print time.time()
+        if running == 0 or (time.time() - t0) >= module.params['wait']:
+            break
+        # wait for processes to shut down or until timeout 'wait'
+        time.sleep(1)
+
+    return pids
+
+
+def check_with_count(module, result, fail):
+
+    count = module.params['count']
+    # convert comma separated kilsignals into list
+    killsignals = module.params['killsignals'].split(',')
+
+    pids = get_pids(module)
+    running = len(pids)
+
+    # kill! kill! kill!
+    if count == 0:
+
+        if running == 0 or module.check_mode:
+            # nothing to do, zero killed, or
+            # there are active processes, but we are in check mode,
+            # so we assume all got killed
+            still_running = 0
+
+        elif not module.check_mode:
+            # there are active processes so now really kill them all
+            # loop through the kill signals in order, and try killing the process(es)
+            for signal in killsignals:
+                pids = kill_process_wait(module, pids, signal)
+                # still running after kill?
+                still_running = len(pids)
+                if still_running == 0:
+                    break
+
+        killed = running - still_running
+        result['still_running'] = still_running
+        result['killed'] = killed
+        result['msg'] = 'killed %s processes' % killed
+
+        # changed is only true when we killed
+        if killed != 0:
+            result['changed'] = True
+
+        # if we killed as much as was running, exit ok
+        if killed != running:
+            fail = True
+
+    # check if we have the right number of running processes
+    elif count > 0:
+        if count == running:
+            result['msg'] = 'Number of running processes (%s) is equal to %s' % (running, count)
+        else:
+            result['msg'] = 'Number of running processes (%s) is not equal to %s' % (running, count)
+            fail = True
+
+    else:
+        result['msg'] = 'count cannot be negative'
+        fail = True
+
+    return (result, fail)
+
+
+def check_with_minmaxcount(module, result, fail):
+
+    mincount = module.params['mincount']
+    maxcount = module.params['maxcount']
+
+    pids = get_pids(module)
+    running = len(pids)
+
+    if mincount is not None and maxcount is not None:
+        if mincount >= maxcount:
+            result['msg'] = 'Minimum (%s) should be smaller than maximum (%s)' % (mincount, maxcount)
+            fail = True
+
+        elif mincount <= running <= maxcount:
+            result['msg'] = 'Number of running processes (%s) is in the range %s -> %s.' % (running, mincount, maxcount)
+        else:
+            result['msg'] = 'Number of running processes (%s) is not in the range %s -> %s.' % (running, mincount, maxcount)
+            fail = True
+    elif mincount is not None:
+        if mincount <= running:
+            result['msg'] = 'Number of running processes (%s) is larger than %s' % (running, mincount)
+        else:
+            result['msg'] = 'Number of running processes (%s) is smaller than %s' % (running, mincount)
+            fail = True
+    elif maxcount is not None:
+        result['maxcount'] = maxcount
+        if running <= maxcount:
+            result['msg'] = 'Number of running processes (%s) is smaller than %s' % (running, maxcount)
+        else:
+            result['msg'] = 'Number of running processes (%s) is larger than %s' % (running, maxcount)
+            fail = True
+
+    return (result, fail)
 
 
 def main():
@@ -132,24 +240,17 @@ def main():
             count = dict(required=False, default=None, type='int'),
             mincount = dict(required=False, type='int'),
             maxcount = dict(required=False, type='int'),
-            wait = dict(required=False, default=1, type='int'),
+            wait = dict(required=False, default=2, type='int'),
             killsignals = dict(required=False, default=KILLSIGNALS)
         ),  
         supports_check_mode=True,
         mutually_exclusive=[['count', 'mincount'], ['count', 'maxcount']],
         required_one_of=[['count', 'mincount' , 'maxcount']]
     )   
-
-    #retrieve some module parameters
-    p = module.params
-
-    name = p['name']
-    count = p['count']
-    mincount = p['mincount']
-    maxcount = p['maxcount']
-    wait = module.params['wait']
-    # convert comma separated kilsignals into list
-    killsignals = module.params['killsignals'].split(',')
+    name = module.params['name']
+    count = module.params['count']
+    mincount = module.params['mincount']
+    maxcount = module.params['maxcount']
 
     # return json dict 
     result = {}
@@ -164,91 +265,24 @@ def main():
 
     # set default changed false; is only true when we killed
     result['changed'] = False
+    # default no fail
+    fail = False
 
     # if count is set
     if count is not None:
         result['count'] = count
-
-        # kill! kill! kill!
-        if count == 0:
-            if running == 0:
-                # nothing to do
-                still_running = 0
-            elif module.check_mode:
-                # there are active processes, we are in check mode, 
-                # so we assume all go killed
-                still_running = 0
-            elif not module.check_mode:
-                # there are active processes so now really kill them all
-                # loop through the kill signals in order, and try killing the process(es)
-                for signal in killsignals:
-                    kill_process(module, pids, signal)
-                    # wait for processes to shut down
-                    time.sleep(wait)
-                    # still running after kill?
-                    pids = get_pids(module)
-                    still_running = len(pids)
-                    if still_running == 0:
-                        break
-            killed = running - still_running
-            result['still_running'] = still_running
-            result['killed'] = killed
-            result['msg'] = 'killed %s processes' % killed
-
-            # changed is only true when we killed
-            if killed != 0:
-                result['changed'] = True
-
-            # if we killed as much as was running, exit ok
-            if killed == running:
-                module.exit_json(**result)
-            else:
-                module.fail_json(**result)
-
-        # check if we have the right number of running processes
-        elif count > 0:
-            if count == running:
-                result['msg'] = 'Number of running processes (%s) is equal to %s' % (running, count)
-                module.exit_json(**result)
-            else:
-                result['msg'] = 'Number of running processes (%s) is not equal to %s' % (running, count)
-                module.fail_json(**result)
-
-        else:
-            result['msg'] = 'count cannot be negative'
-            module.fail_json(**result)
+        (result, fail) = check_with_count(module, result, fail)
 
     # check with mincount and/or maxcount
-    elif mincount is not None and maxcount is not None:
+    elif mincount is not None or maxcount is not None:
         result['mincount'] = mincount
         result['maxcount'] = maxcount
-        if mincount <= running <= maxcount:
-            result['msg'] = 'Number of running processes (%s) is in the range %s -> %s.' % (running, mincount, maxcount)
-            module.exit_json(**result)
-        else:
-            result['msg'] = 'Number of running processes (%s) is not in the range %s -> %s.' % (running, mincount, maxcount)
-            module.fail_json(**result)
-    elif mincount is not None:
-        result['mincount'] = mincount
-        if mincount <= running:
-            result['changed'] = False
-            result['msg'] = 'Number of running processes (%s) is larger than %s' % (running, mincount)
-            module.exit_json(**result)
-        else:
-            result['msg'] = 'Number of running processes (%s) is smaller than %s' % (running, mincount)
-            module.fail_json(**result)
-    elif maxcount is not None:
-        result['maxcount'] = maxcount
-        if running <= maxcount:
-            result['changed'] = False
-            result['msg'] = 'Number of running processes (%s) is smaller than %s' % (running, maxcount)
-            module.exit_json(**result)
-        else:
-            result['msg'] = 'Number of running processes (%s) is larger than %s' % (running, maxcount)
-            module.fail_json(**result)
+        (result, fail) = check_with_minmaxcount(module, result, fail)
 
-    result['msg'] = "Unknown error, this is not supposed to get here"
-    module.fail_json(**result)
+    if fail:
+        module.fail_json(**result)
+    else:
+        module.exit_json(**result)
 
 # this is magic, see lib/ansible/module_common.py
 #<<INCLUDE_ANSIBLE_MODULE_COMMON>>

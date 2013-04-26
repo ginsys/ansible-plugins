@@ -20,44 +20,45 @@
 
 DOCUMENTATION = '''
 ---
-module: check_service
+module: check_process
 author: Serge van Ginderachter
 version_added: "1.2"
 short_description: Check processes and maybe kill them
 description:
-    - Checks (number of) running processes for a given command argument
-    - Can kill those matching processes, with increasing kill signal priority
+    - Checks (number of) running processes for a given command argument and
+      can kill those matching processes, with increasing kill signal priority
 options:
     name:
         required: true
         description:
-        - Name of the process, a substring to look for as would be 
-          found in the output of the I(ps) command.
-        - Matches against full process argument string (as per pkill -f)
+        - name of the process, a substring to look for as would be 
+          found in the output of the I(ps) command; matches against full 
+          process argument string (as per ps auxww)
     count:
         required: false
         description:
-        - exact number of processes that should be found in the process list
-        - if 0, processess will be killed; 
-          this is the only case where action is taken to modify the target system
-        - use of count excludes use of mincount or maxcount
+        - exact number of processes that should be found in the process list; 
+          if 0, processess will be killed, which is the only case where action 
+          is taken to modify the target system; 
+          use of count excludes use of mincount or maxcount
     mincount:
         required: false
         default: 0
         description:
-        - minimum number of processes that should be found in the process list
-        - if set, module will fail if less processes are found
+        - minimum number of processes that should be found in the process list;
+          if set, module will fail if less processes are found
     maxcount:
         required: false
         description:
-        - maximum number of processes that should be found in the process list
-        - if set, module will fail if more processes are found
+        - maximum number of processes that should be found in the process list;
+          if set, module will fail if more processes are found
     wait:
         required: false
         default: 1
         description: 
-        - time to wait for process to disappear from the process list after
-          receiving a kill signal
+        - time in seconds to wait before checking the process list again, 
+          for process(es) to disappear from the process list, after receiving 
+          a kill signal; only used when count=0
     killsignals:
         required: false
         default: SIGTERM,SIGSTOP,SIGKILL
@@ -66,8 +67,12 @@ options:
           terminate the process when count is set to 0
 
 examples:
-    - description: 
-      code: "check_process: name="
+    - description: checks that exactly 1 process is running of this custom tomcat service
+      code: "check_process: name=/opt/tomcat/apache-tomcat7/lib/ count=1"
+    - description: force kill all running java processes
+      code: "check_process: name=java count=0 killsignals=SIGKILL"
+    - description: check for at least 10 apache processes
+      code: "check_process: name=apache2 mincount=10"
 '''
 
 import platform

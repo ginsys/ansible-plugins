@@ -1,0 +1,455 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# (c) 2013, Serge van Ginderachter <serge@vanginderachter.be
+#
+# This file is part of Ansible
+#
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+
+DOCUMENTATION = '''
+---
+author: Serge van Ginderachter
+module: jvspherecontrol
+short_description: A wrapper module to Patrick Debois' jvspherecontrol
+description:
+  - This module wraps (some) features of Patrick Debois' jvspherecontrol 
+    which is an java cli to the VMWare vsphere API
+    (https://github.com/jedi4ever/jvspherecontrol)
+version_added: "1.2"
+options:
+  path:
+    required: yes
+    description: full path to the jvsperecontrol jar
+  url: 
+    required: true
+    description: url to connect with to vSphere, including the sdk part
+  user: 
+    required: true
+    description: 
+    - username to connect to vSphere
+  password: 
+    required: true
+    description: 
+    - password to connect to vSphere
+  command:
+    required: true
+    description: 
+    - the base command to pass to jvspherecontrol
+      can be any of the jvspehere commands, or optionally checkvm
+    choices: ['list', 'createvm', 'omapiregister', 'activatevnc', 
+                'deactivatevnc', 'sendvnctxt', 'checkvm']
+
+  list: 
+    description: 
+    - option to the list command, which objects to retrieve a list from vSphere
+    choices: ['hosts', 'datacenters', 'datastores', 'clusters', 'networks',
+              'users', vms, 'all', 'resourcepools']
+  bootorder: 
+    description: 
+    - I(order) to boot, better allow/deny boot devices, e.g. allow:cd,hd,net or deny:net,cd
+  cdromdatastore: 
+    description: 
+    - cd/dvd datastorename
+  cdromisopath: 
+    description: 
+    - path to dvd isofile
+  cluster: 
+    description: 
+    - name of the cluster to store new Vm
+  cpus: 
+    description: 
+    - number of cpu's to allocate
+  datacenter: 
+    description: 
+    - name of the datacenter to store new Vm
+  datastore: 
+    description: 
+    - name of the datastore to store new Vm
+  disk:
+    description: 
+    - a list of dictionaries setting the disk(s)
+    - size in MB's
+    - ({datastore: 'Datastore 01', mode: '', size: '1024'}, ... )
+  memory: 
+    description: 
+    - memory size to allocate
+    - size in MB
+  name: 
+    description: 
+    - name of vm to create
+  nic: 
+    description: 
+        - a list of dictionaries setting the network interface(s): e.g.
+      ({connected: True, name: 'VM Network', network: '', pxe: 'False',
+      startconnected: True, type: 'e1000'}, ... )
+  omapihost: 
+    description: 
+    - omapi hostname
+  omapikeyname: 
+    description: 
+    - omapi key to use
+  omapikeyvalue: 
+    description:
+    - omapi value
+  omapioverwrite: 
+    description:
+    - overwrite omapi entry
+  omapiport: 
+    description: 
+    - omapi portname
+  omapiregister: 
+    description: 
+    - register with omapi server
+  ostype: 
+    description: 
+    - type of vm to create
+  overwrite: 
+    description: 
+    - overwrite vm Flag
+  pxeinterface: 
+    description: 
+    - name of the network interface to PXE from
+  registermac: 
+    description: 
+    - command to execute, %s gets replaced with the MAC address
+  hostname: 
+    description: 
+    - hostname to register
+  macaddress: 
+    description: 
+    - mac address to register
+  omapihost: 
+    description: 
+    - omapi hostname
+  omapikeyname: 
+    description: 
+    - omapi key to use
+  omapikeyvalue: 
+    description: 
+    - omapi value
+  omapioverwrite: 
+    description: 
+    - overwrite omapi entry
+  omapiport: 
+    description: 
+    - omapi portname
+  omapiregister: 
+    description: 
+    - register with omapi server
+  vmname: 
+    description: 
+    - name of vm to create
+  vncpassword: 
+    description: 
+    - password to set on the VNC
+  vncport: 
+    description: 
+    - port to enable VNC on
+  vmname: 
+    description: 
+    - vmname to disable vnc
+  host: 
+    description: 
+    - host to send it to
+  port: 
+    description: 
+    - port to connect to
+  text: 
+    description: 
+    - text to send
+  wait: 
+    description: 
+    - seconds to wait in between sending different texts (default=1s)
+
+
+notes:
+  - the system this module gets run on, must be a host with access to the vmware
+    api; executee I(java -jar C($jvsphere-control-jar-with-dependencies.jar) --help)
+    for more detailed information on which command takes which parameters
+requirements:
+  - jvspherecontrol must be built from the upstream project (git checkout, then mvn package)
+    and java must be installed and available in C($PATH) on the system where the module gets executed
+  - the jvspherecontrol jar must be available on that system, its path defined
+'''
+EXAMPLES = '''
+- hosts: localhost
+  tasks:
+  - action: 
+      module: jvspherecontrol
+      path: /home/serge/src/jvspherecontrol/target/jvspherecontrol-0.0.4-SNAPSHOT-jar-with-dependencies.jar 
+      url: vcserver.local
+      cluster: myorg
+      user: ansible
+      password: t0ps3cr3t
+      command: createvm 
+      name: test
+      disk:
+      - datastore: datastore1
+      - datastore: datastore1
+        size: 10485760
+      nic:
+      - connected: yes
+        network: 3000
+        name: prod
+        pxe: yes
+      - name: mgmt
+      bootorder: 'allow:net,hd'
+      registermac: '"cobbler system edit --name=${inventory_hostname} --mac=%s"'
+'''
+
+COMMANDS = ['list', 'createvm', 'omapiregister', 'activatevnc', 
+            'deactivatevnc', 'sendvnctxt', 'checkvm']
+NOACT_COMMANDS = ['list', 'checkvm']
+
+NEED_VSPHERE_CONN = ['list', 'createvm', 'activatevnc', 'deactivatevnc',
+                     'checkvm']
+
+
+OPTIONS = {'list': ['hosts', 'datacenters', 'datastores', 'clusters', 'networks', 
+                    'users', 'vms', 'all', 'resourcepools'],
+            'createvm': ['bootorder', 'cdromdatastore', 'cdromisopath', 'cluster',
+                    'cpus', 'datacenter', 'datastore', 'disk', 'memory', 'name', 
+                    'nic', 'omapihost', 'omapikeyname', 'omapikeyvalue', 
+                    'omapioverwrite', 'omapiport', 'omapiregister', 'ostype', 
+                    'overwrite', 'pxeinterface', 'registermac'],
+            'omapiregister': ['hostname', 'macaddress', 'omapihost',
+                              'omapikeyname', 'omapikeyvalue', 'omapioverwrite',
+                             'omapiport', 'omapiregister'],
+            'activatevnc': ['vmname', 'vncpassword', 'vncport'],
+            'deactivatevnc': ['vmname'],
+            'sendvnctext': ['host', 'password', 'port', 'text', 'wait']}
+
+REQUIRED = {'createvm': ['name', 'memory', 'ostype'],
+            'omapiregister': ['macaddress', 'hostname'],
+            'activatevnc': [OPTIONS['activatevnc']],
+            'deactivatevnc': ['vmname'],
+            'sendvnctext': ['password', 'host', 'port']}
+
+MULTI_OPTIONS = {'disk': ('datastore', 'mode', 'size'),
+                  'nic': ('connected', 'name', 'network', 'pxe',
+                          'startconnected', 'type')}
+DEFAULTS = {'memory':  '1024',
+            'ostype': 'Ubuntu64Guest', 
+            'cpus': '1',
+            'disk': {'mode': 'persistent',
+                     'size': '110485760'},
+            'nic': {'type': 'e1000',
+                    'connected': 'True',
+                    'startconnected': 'True',
+                    'network': 'VM Network'}
+           }
+
+E_VM_EXISTS = 1
+
+def check_paths(module):
+    p = module.params
+
+    # check for java exec
+    java = module.get_bin_path('java', True)
+
+    # check jvspherecontrol jar path
+    path = p['path']
+    if not os.path.isfile(path) or not os.access(path, os.R_OK):
+        module.fail_json(msg="could not find or read the jvspherecontrol jar")
+
+    return java
+
+def get_jvspherecontrol(module):
+    
+    # initial checks
+    java = check_paths(module)
+    
+    p = module.params
+
+    # set base command
+    jvspherecontrol = '%s -jar %s' % (java, p['path'])
+
+    return jvspherecontrol
+
+def get_connection_options(module):
+    p = module.params
+    url = p['url']
+
+    # Try to failsafe if only hostname/ip is given
+    if not url.startswith('http://'):
+        url = 'https://' + url
+    if not url.endswith('/sdk'):
+        url = url + '/sdk'
+
+    return '--url "%s" --user "%s" --password "%s"' % (url, p['user'], p['password'])
+
+def _get_command_options(module, options=[], required=[]):
+    p = module.params
+    opts = ''
+
+    for opt in options: # options for given command
+        # check if we have a default for a non multi options
+        # there are no defaults for multi options
+        # there can be defaults for multioptions-suboptions, but these are handled later
+        if p[opt] is None and opt in required and opt in DEFAULTS and opt not in MULTI_OPTIONS:
+                p[opt] = DEFAULTS[opt]
+        if p[opt] is None and opt in required:
+            # if still none, error
+            module.fail_json(msg="missing required option --%s for command %s" %
+                            (opt, p['command']))
+        elif opt in MULTI_OPTIONS:
+            # multi options have complex vars
+            # can be a dict (1 disk/nic) or a list of dicts (multiple disks/nics)
+            if isinstance(p[opt], dict):
+                # convert to a list of 1 dict
+                # then we handle lists
+                devopts = (p[opt])
+            elif isinstance(p[opt], list):
+                devopts = p[opt]
+            elif p[opt] is None:
+                devopts = []
+            else:
+                module.fail_json(msg="Error parsing complex variable %s" % opt)
+
+            # devopts now is a list of dicts holding device multi-options parameters
+            for devicenum in range(len(devopts)):
+
+                # first replace missing suboptions by default value
+                for defopt in DEFAULTS[opt]:
+                    if defopt not in devopts[devicenum]:
+                        devopts[devicenum][defopt] = DEFAULTS[opt][defopt]
+
+                for devopt in devopts[devicenum]:  # devopt = sub device dict key
+                    if devopt in MULTI_OPTIONS[opt]:
+                        # valid extension, device count starts at 1
+                        devoptvalue = devopts[devicenum][devopt]
+                        opts += ' --%s%s%s "%s"' % (opt, devopt, devicenum + 1, devoptvalue)
+                    else:
+                        module.fail_json(msg='--%s%s%s is not a valid option'
+                                             % (opt, devopt, devicenum + 1))
+
+        elif p[opt] is not None:
+            opts += ' --%s "%s"' % (opt, p[opt])
+        
+    return opts
+
+def get_command_options(module, command):
+    p = module.params
+    opts = ''
+
+    if command in NOACT_COMMANDS:
+        # checkvm = special module command to check if vm exists
+        # we use the list command and check the output afterwards
+        if command == 'list':
+            opts += '%s ' % p['list']
+        elif command == 'checkvm':
+            opts += 'vms '
+
+    elif command in COMMANDS:
+        opts += _get_command_options(module, options=OPTIONS[command],
+                                           required=REQUIRED[command]) + ' '
+
+    if command in NEED_VSPHERE_CONN:
+        opts += get_connection_options(module)
+    
+    return opts
+
+
+def main():
+    module = AnsibleModule(
+        argument_spec = dict(
+            # path to jvspherecontrol.jar
+            path = dict(required=True), 
+
+            # common required args
+            url = dict(),
+            user = dict(),
+            password = dict(),
+            
+            # base command
+            command = dict(required=True, choices=COMMANDS),
+            
+            # list command option
+            list = dict(default='vms', choice=OPTIONS['list']),
+            
+            # createvm vommand options
+            bootorder = dict(), 
+            cdromdatastore = dict(), 
+            cdromisopath = dict(),
+            cluster = dict(), 
+            cpus = dict(),
+            datacenter = dict(), 
+            datastore = dict(),
+            disk = dict(),
+            memory = dict(),
+            name = dict(),
+            nic = dict(),
+            omapihost = dict(), 
+            omapikeyname = dict(), 
+            omapikeyvalue = dict(), 
+            omapioverwrite = dict(), 
+            omapiport = dict(), 
+            omapiregister = dict(), 
+            ostype = dict(), 
+            overwrite=dict(type='bool', default='no'),
+            pxeinterface = dict(), 
+            registermac = dict(), 
+            hostname = dict(), 
+            macaddress = dict(), 
+            vmname = dict(), 
+            vncpassword = dict(),
+            vncport = dict(), 
+            host = dict(), 
+            port = dict(), 
+            text = dict(),
+            wait = dict()
+        ),
+        supports_check_mode=True
+    )
+
+    p = module.params
+    check_mode = module.check_mode
+
+    # get base command with required base args
+    jvspherecontrol = get_jvspherecontrol(module)
+
+    # get jvspherecontrol base command
+    command = p['command']
+    # get jvspherecontrol options for command
+    options = get_command_options(module, command)
+
+    # assemble executable command
+    cmd = '%s %s %s' % (jvspherecontrol, command, options)
+
+    #(rc, out, err) = module.run_command(cmd)
+    if command in NOACT_COMMANDS:
+        # no need to check for check_mode, as these options only retrieve info
+        if command == 'checkvm':
+            pass
+        elif command == 'list':
+            pass
+
+    elif command == 'createvm':
+        pass
+        # if return code E_VM_EXISTS and force is false, return failed = true
+
+    elif command in COMMANDS:
+        pass
+    else:
+        module.fail_json(msg="the %s command does not exist" % command)
+
+
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+
+if __name__ == '__main__':
+    main()
+

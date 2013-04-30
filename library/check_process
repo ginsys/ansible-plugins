@@ -54,14 +54,15 @@ options:
           if set, module will fail if more processes are found
     wait:
         required: false
-        default: 2
+        default: 60,5
         description: 
-        - time in seconds to wait before checking the process list again, 
+        - times in seconds to wait before checking the process list again, 
           for process(es) to disappear from the process list, after receiving 
-          a kill signal; only used when count=0
+          a kill signal; there must be at least as many wait times as there are
+          killsignals; only used when count=0
     killsignals:
         required: false
-        default: SIGTERM,SIGSTOP,SIGKILL
+        default: SIGTERM,SIGKILL
         description:
         - comma-separated ordered list of signals(7), used to sequentially
           terminate the process when count is set to 0
@@ -78,8 +79,8 @@ examples:
 import platform
 import time
 
-KILLSIGNALS = 'SIGTERM,SIGSTOP,SIGKILL'
-
+KILLSIGNALS = 'SIGTERM,SIGKILL'
+WAITTIMES = '60,5'
 
 def get_pids(module):
     ''' returns a list of pid's matching the name pattern'''
@@ -121,19 +122,17 @@ def kill_process(module, pids, signal):
 
     # kill --signal <signal> <pid1 pid2  ...>
     cmd = '%s --signal %s %s' % (killbin, signal, pids_str)
-    print cmd
     (rc, out, err) = module.run_command(cmd)
 
 
-def kill_process_wait(module, pids, signal):
+def kill_process_wait(module, pids, signal, wait):
     kill_process(module, pids, signal)
 
     t0 = time.time()
     while 1:
         pids = get_pids(module)
         running = len(pids)
-        print time.time()
-        if running == 0 or (time.time() - t0) >= module.params['wait']:
+        if running == 0 or (time.time() - t0) >= int(wait):
             break
         # wait for processes to shut down or until timeout 'wait'
         time.sleep(1)
@@ -146,6 +145,10 @@ def check_with_count(module, result, fail):
     count = module.params['count']
     # convert comma separated kilsignals into list
     killsignals = module.params['killsignals'].split(',')
+    waittimes = module.params['wait'].split(',')
+
+    if len(killsignals) > len(waittimes):
+        module.fail_json(msg='you need at least as many wait times (got %s) as killsignals (got %s)' % (len(killsignals), len(waits)))
 
     pids = get_pids(module)
     running = len(pids)
@@ -158,12 +161,16 @@ def check_with_count(module, result, fail):
             # there are active processes, but we are in check mode,
             # so we assume all got killed
             still_running = 0
+            signal = None
 
         elif not module.check_mode:
             # there are active processes so now really kill them all
             # loop through the kill signals in order, and try killing the process(es)
-            for signal in killsignals:
-                pids = kill_process_wait(module, pids, signal)
+
+            for n in range(len(killsignals)):
+                signal = killsignals[n]
+                wait = waittimes[n]
+                pids = kill_process_wait(module, pids, signal, wait)
                 # still running after kill?
                 still_running = len(pids)
                 if still_running == 0:
@@ -172,6 +179,7 @@ def check_with_count(module, result, fail):
         killed = running - still_running
         result['still_running'] = still_running
         result['killed'] = killed
+        result['signal'] = signal
         result['msg'] = 'killed %s processes' % killed
 
         # changed is only true when we killed
@@ -240,7 +248,7 @@ def main():
             count = dict(required=False, default=None, type='int'),
             mincount = dict(required=False, type='int'),
             maxcount = dict(required=False, type='int'),
-            wait = dict(required=False, default=2, type='int'),
+            wait = dict(required=False, default=WAITTIMES),
             killsignals = dict(required=False, default=KILLSIGNALS)
         ),  
         supports_check_mode=True,
@@ -258,6 +266,7 @@ def main():
 
     # retrieve pids matching the name pattern
     pids = get_pids(module)
+    result['pids'] = pids
 
     # set number of running processes we found
     running = len(pids)

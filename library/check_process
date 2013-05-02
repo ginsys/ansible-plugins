@@ -121,7 +121,7 @@ def kill_process(module, pids, signal):
     pids_str = ' '.join(str(x) for x in pids )
 
     # kill --signal <signal> <pid1 pid2  ...>
-    cmd = '%s --signal %s %s' % (killbin, signal, pids_str)
+    cmd = '%s -%s %s' % (killbin, signal, pids_str)
     (rc, out, err) = module.run_command(cmd)
 
 

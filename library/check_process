@@ -66,6 +66,8 @@ options:
         description:
         - comma-separated ordered list of signals(7), used to sequentially
           terminate the process when count is set to 0
+          if set to C(NOKILL), no kill will be executed, but will still wait for
+          proces to come down, handy to use after e.g. an init stop script
 
 examples:
     - description: checks that exactly 1 process is running of this custom tomcat service
@@ -122,6 +124,9 @@ def kill_process(module, pids, signal):
 
     # kill --signal <signal> <pid1 pid2  ...>
     cmd = '%s -%s %s' % (killbin, signal, pids_str)
+    if signal == 'NOKILL':
+        # don't execute any kill command
+        cmd = ': ' + cmd
     (rc, out, err) = module.run_command(cmd)
 
 
@@ -167,6 +172,7 @@ def check_with_count(module, result, fail):
             # there are active processes so now really kill them all
             # loop through the kill signals in order, and try killing the process(es)
 
+            t0 = time.time()
             for n in range(len(killsignals)):
                 signal = killsignals[n]
                 wait = waittimes[n]
@@ -175,6 +181,7 @@ def check_with_count(module, result, fail):
                 still_running = len(pids)
                 if still_running == 0:
                     break
+            result['time_elapsed': '%s' % time.time() - t0]
 
         killed = running - still_running
         result['still_running'] = still_running

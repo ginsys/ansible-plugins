@@ -82,7 +82,7 @@ import platform
 import time
 
 KILLSIGNALS = 'SIGTERM,SIGKILL'
-WAITTIMES = '60,5'
+WAITTIMES = '30,5'
 
 def get_pids(module):
     ''' returns a list of pid's matching the name pattern'''
@@ -181,7 +181,7 @@ def check_with_count(module, result, fail):
                 still_running = len(pids)
                 if still_running == 0:
                     break
-            result['time_elapsed': '%s' % time.time() - t0]
+            result['time_elapsed'] = '%s s' % (time.time() - t0)
 
         killed = running - still_running
         result['still_running'] = still_running

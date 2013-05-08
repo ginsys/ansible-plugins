@@ -47,9 +47,9 @@ options:
     required: true
     description: 
     - the base command to pass to jvspherecontrol
-      can be any of the jvspehere commands, or optionally checkvm
+      can be any of the jvsphere commands
     choices: ['list', 'createvm', 'omapiregister', 'activatevnc', 
-                'deactivatevnc', 'sendvnctxt', 'checkvm']
+                'deactivatevnc', 'sendvnctxt']
 
   list: 
     description: 
@@ -210,26 +210,25 @@ EXAMPLES = '''
 '''
 
 COMMANDS = ['list', 'createvm', 'omapiregister', 'activatevnc', 
-            'deactivatevnc', 'sendvnctxt', 'checkvm']
-NOACT_COMMANDS = ['list', 'checkvm']
+            'deactivatevnc', 'sendvnctxt']
+NOACT_COMMANDS = ['list']
 
-NEED_VSPHERE_CONN = ['list', 'createvm', 'activatevnc', 'deactivatevnc',
-                     'checkvm']
+NEED_VSPHERE_CONN = ['list', 'createvm', 'activatevnc', 'deactivatevnc']
 
 
 OPTIONS = {'list': ['hosts', 'datacenters', 'datastores', 'clusters', 'networks', 
                     'users', 'vms', 'all', 'resourcepools'],
-            'createvm': ['bootorder', 'cdromdatastore', 'cdromisopath', 'cluster',
+           'createvm': ['bootorder', 'cdromdatastore', 'cdromisopath', 'cluster',
                     'cpus', 'datacenter', 'datastore', 'disk', 'memory', 'name', 
                     'nic', 'omapihost', 'omapikeyname', 'omapikeyvalue', 
                     'omapioverwrite', 'omapiport', 'omapiregister', 'ostype', 
                     'overwrite', 'pxeinterface', 'registermac'],
-            'omapiregister': ['hostname', 'macaddress', 'omapihost',
+           'omapiregister': ['hostname', 'macaddress', 'omapihost',
                               'omapikeyname', 'omapikeyvalue', 'omapioverwrite',
                              'omapiport', 'omapiregister'],
-            'activatevnc': ['vmname', 'vncpassword', 'vncport'],
-            'deactivatevnc': ['vmname'],
-            'sendvnctext': ['host', 'password', 'port', 'text', 'wait']}
+           'activatevnc': ['vmname', 'vncpassword', 'vncport'],
+           'deactivatevnc': ['vmname'],
+           'sendvnctext': ['host', 'password', 'port', 'text', 'wait']}
 
 REQUIRED = {'createvm': ['name', 'memory', 'ostype'],
             'omapiregister': ['macaddress', 'hostname'],
@@ -345,12 +344,8 @@ def get_command_options(module, command):
     opts = ''
 
     if command in NOACT_COMMANDS:
-        # checkvm = special module command to check if vm exists
-        # we use the list command and check the output afterwards
         if command == 'list':
             opts += '%s ' % p['list']
-        elif command == 'checkvm':
-            opts += 'vms '
 
     elif command in COMMANDS:
         opts += _get_command_options(module, options=OPTIONS[command],

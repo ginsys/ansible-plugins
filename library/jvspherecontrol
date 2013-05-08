@@ -430,14 +430,15 @@ def main():
     # assemble executable command
     cmd = '%s %s %s' % (jvspherecontrol, command, options)
 
-    if command not in NOACT_COMMANDS and check_mode == true:
+    if command not in NOACT_COMMANDS and check_mode == True:
         module.exit_json(changed=True)
 
     (rc, out, err) = module.run_command(cmd)
 
     # jvspherecontrol exit codes suck, seems to be allways 0 when error
     if 'exception' in err.lower():
-        module.fail_json(msg='jvspherecontrol returned an error', stdout=out, stderr=err)
+        module.fail_json(msg='jvspherecontrol returned an error', stdout=out,
+                         stderr=err, cmd=cmd)
 
     if command == 'list':
         if rc == 0:
@@ -448,24 +449,28 @@ def main():
                     list.extend([item])
             module.exit_json(changed=False, list=list, stdout=out, stderr=err)
         elif rc != 0 or 'exception' in stderr:
-            module.fail_json(stdout=out, stderr=err)
+            module.fail_json(stdout=out, stderr=err, cmd=cmd, msg='failed executing list command')
 
     elif command == 'createvm':
         if rc == 0:
-            module.exit_json(changed=True, name=p['name'], stdout=out, stderr=err)
+            module.exit_json(changed=True, name=p['name'], stdout=out,
+                             stderr=err, cmd=cmd)
         elif rc == E_VM_EXISTS:
             # when return code == E_VM_EXISTS == 1
             # the vm already exists
             # only happens when force is false (default)
-            module.exit_json(changed=False, name=p['name'], stdout=out, stderr=err)
+            module.exit_json(changed=False, name=p['name'], stdout=out,
+                             stderr=err, cmd=cmd)
         elif rc not in [0,1]:
-            module.fail_json(name=name, stdout=out, stderr=err)
+            module.fail_json(name=p['name'], stdout=out, stderr=err, cmd=cmd,
+                             msg='Failed creating vm')
 
     elif command in COMMANDS:
         if rc == 0:
-            module.exit_json(changed=False, stdout=out, stderr=err)
+            module.exit_json(changed=False, stdout=out, stderr=err, cmd=cmd)
         else:
-            module.fail_json(name=name, stdout=out, stderr=err)
+            module.fail_json(name=name, stdout=out, stderr=err, cmd=cmd,
+                             msg='failed executing %s command' % command)
     else:
         module.fail_json(msg="the %s command does not exist" % command)
 

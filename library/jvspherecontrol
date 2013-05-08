@@ -430,24 +430,44 @@ def main():
     # assemble executable command
     cmd = '%s %s %s' % (jvspherecontrol, command, options)
 
-    #(rc, out, err) = module.run_command(cmd)
-    if command in NOACT_COMMANDS:
-        # no need to check for check_mode, as these options only retrieve info
-        if command == 'checkvm':
-            pass
-        elif command == 'list':
-            pass
+    if command not in NOACT_COMMANDS and check_mode == true:
+        module.exit_json(changed=True)
+
+    (rc, out, err) = module.run_command(cmd)
+
+    # jvspherecontrol exit codes suck, seems to be allways 0 when error
+    if 'exception' in err.lower():
+        module.fail_json(msg='jvspherecontrol returned an error', stdout=out, stderr=err)
+
+    if command == 'list':
+        if rc == 0:
+            list = []
+            for line in out.rstrip('\n').split('\n'):
+                if line not in ['executing']:
+                    item = line.strip()
+                    list.extend([item])
+            module.exit_json(changed=False, list=list, stdout=out, stderr=err)
+        elif rc != 0 or 'exception' in stderr:
+            module.fail_json(stdout=out, stderr=err)
 
     elif command == 'createvm':
-        pass
-        # if return code E_VM_EXISTS and force is false, return failed = true
+        if rc == 0:
+            module.exit_json(changed=True, name=p['name'], stdout=out, stderr=err)
+        elif rc == E_VM_EXISTS:
+            # when return code == E_VM_EXISTS == 1
+            # the vm already exists
+            # only happens when force is false (default)
+            module.exit_json(changed=False, name=p['name'], stdout=out, stderr=err)
+        elif rc not in [0,1]:
+            module.fail_json(name=name, stdout=out, stderr=err)
 
     elif command in COMMANDS:
-        pass
+        if rc == 0:
+            module.exit_json(changed=False, stdout=out, stderr=err)
+        else:
+            module.fail_json(name=name, stdout=out, stderr=err)
     else:
         module.fail_json(msg="the %s command does not exist" % command)
-
-
 
 # this is magic, see lib/ansible/module_common.py
 #<<INCLUDE_ANSIBLE_MODULE_COMMON>>

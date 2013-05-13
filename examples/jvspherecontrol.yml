@@ -1,0 +1,23 @@
+- hosts: localhost
+  gather_facts: False
+  tasks:
+  - action:
+      module: jvspherecontrol
+      path: /home/serge/src/jvspherecontrol/target/jvspherecontrol-0.0.4-SNAPSHOT-jar-with-dependencies.jar 
+      url: vcserver.local
+      cluster: myorg
+      user: ansible
+      password: t0ps3cr3t
+      command: createvm
+      name: test
+      disk:
+      - size: 10485760
+      - size: 104857600
+      nic:
+      - connected: yes
+        network: 3000
+        name: prod
+        pxe: yes
+      - name: mgmt
+      bootorder: 'allow:net,hd'
+      registermac: 'cobbler system edit --name=${inventory_hostname} --mac=%s'

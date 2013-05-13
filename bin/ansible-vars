@@ -1,0 +1,132 @@
+#!/usr/bin/env python
+
+# (c) 2012, Michael DeHaan <michael.dehaan@gmail.com>
+# (c) 2013, Serge van Ginderachter <serge@vanginderachter.be>
+#
+# This file was based on bin/ansible
+#
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+
+########################################################
+
+import sys
+import yaml
+
+import ansible.constants as C
+from ansible import utils
+from ansible import errors
+from ansible import inventory
+
+########################################################
+
+def flatten(terms):
+    ret = []
+    for term in terms:
+        if isinstance(term, list):
+            ret.extend(term)
+        else:
+            ret.append(term)
+    return ret 
+
+class Cli(object):
+
+    # ----------------------------------------------
+
+    def __init__(self):
+        pass
+
+    # ----------------------------------------------
+
+    def parse(self):
+        ''' create an options parser for bin/ansible '''
+
+        parser = utils.SortedOptParser(
+            usage='%prog <host-pattern> [options]'
+        )
+        parser.add_option('-i', '--inventory-file', dest='inventory',
+            help="specify inventory host file (default=%s)" % C.DEFAULT_HOST_LIST,
+            default=C.DEFAULT_HOST_LIST)
+        parser.add_option('--list-hosts', dest='listhosts', action='store_true',
+            help="dump out a list of hosts matching input pattern")
+        parser.add_option('--list-groups', dest='listgroups', action='store_true',
+            help="dump out the list of groups")
+        parser.add_option('-l', '--limit', default=C.DEFAULT_SUBSET, dest='subset',
+            help='further limit selected hosts to an additional pattern')
+
+        parser.add_option('-y', '--yaml', dest='yaml', action='store_true',
+            help="dump out variables in yaml format")
+
+        parser.add_option('-j', '--json', dest='json', action='store_true',
+            help="dump out variables in json format (default)")
+
+        options, args = parser.parse_args()
+        if len(args) == 0 or len(args) > 1:
+            parser.print_help()
+            sys.exit(1)
+        return (options, args)
+
+    # ----------------------------------------------
+
+    def run(self, options, args):
+
+        pattern = args[0]
+        
+        I = inventory.Inventory(options.inventory)
+        if options.subset:
+            I.subset(options.subset)
+        hosts = I.list_hosts(pattern)
+        groups = I.get_groups()
+        if len(hosts) == 0:
+            print >>sys.stderr, "No hosts matched"
+            sys.exit(1)
+
+        if options.listhosts:
+            for host in hosts:
+                print '%s' % host
+            sys.exit(0)
+        
+        if options.listgroups:
+            group_subset = []
+            for host in hosts:
+                group_subset.append(I.groups_for_host(host))
+                group_subset = list(set(flatten(group_subset)))
+            for group in group_subset:
+                parents = group.get_ancestors()
+                print '%s (depth %s): parents: %s' % (group.name, group.depth,
+                                             [ '%s (depth %s)' % (x.name, x.depth) for x in parents ])
+            sys.exit(0)
+
+        results = { }
+        for host in hosts:
+            vars = I.get_variables(host)
+            results.update({host: vars})
+
+        return results
+
+########################################################
+
+if __name__ == '__main__':
+    cli = Cli()
+    (options, args) = cli.parse()
+    try:
+        results = cli.run(options, args)
+    except errors.AnsibleError, e:
+        # Generic handler for ansible specific errors
+        print "ERROR: %s" % str(e)
+        sys.exit(1)
+    if options.json and not options.yaml:
+        print utils.jsonify(results, format=True)
+    else:
+        print yaml.safe_dump(results)
+

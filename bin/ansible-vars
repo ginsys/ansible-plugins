@@ -128,5 +128,5 @@ if __name__ == '__main__':
     if options.json and not options.yaml:
         print utils.jsonify(results, format=True)
     else:
-        print yaml.dump(results)
+        print yaml.safe_dump(results)
 

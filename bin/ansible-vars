@@ -104,25 +104,14 @@ class Cli(object):
             def print_group_tree(group):
 
                 # print parent
-                print '%s %s(%s) | p: %s | c:%s' % ('.' * group.depth, group.name,  group.depth,
-                        ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]),
-                        ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.child_groups ]) ) 
+                print '%s %s(%s)' % ('.' * group.depth, group.name, group.depth)
+                #print '%s %s(%s) | p: %s | c:%s' % ('.' * group.depth, group.name,  group.depth,
+                #        ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]),
+                #        ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.child_groups ]) ) 
 
-                # get childs in sorted order
-                childnames = []
                 for child in group.child_groups:
-                    childnames.extend([child.name])
-                if childnames == []:
-                    return
-                childnames.sort()
-
-                childgroups = []
-                for childname in childnames:
-                    childgroups.extend([I.get_group(childname)])
-
-                # print childs only if child's are 1 deeper than parent
-                for child in childgroups:
-                    if child.depth == group.depth + 1:
+                    # add only direct childs, 1 deeper than parent
+                    if child.depth == group.depth +1:
                         print_group_tree(child)
 
             basegroup = I.get_group(pattern)

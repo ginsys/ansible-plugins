@@ -250,7 +250,30 @@ DEFAULTS = {'memory':  '1024',
                     'network': 'VM Network'}
            }
 
+import re
+
 E_VM_EXISTS = 1
+
+def safe_eval(str):
+    ''' 
+    adapted from ansible_utils.safe_eval
+    this is intended for allowing things like:
+    multioption: "{{ a_complex_variable }}"
+    '''
+    # do not allow method calls to modules
+    if not isinstance(str, basestring):
+        # already templated to a datastructure, perhaps?
+        return str 
+    if re.search(r'\w\.\w+\(', str):
+        return str 
+    # do not allow imports
+    if re.search(r'import \w+', str):
+        return str 
+    try:
+        return eval(str)
+    except Exception, e:
+        return str 
+
 
 def check_paths(module):
     p = module.params
@@ -313,6 +336,8 @@ def _get_command_options(module, options=[], required=[]):
         elif opt in MULTI_OPTIONS:
             # multi options have complex vars
             # can be a dict (1 disk/nic) or a list of dicts (multiple disks/nics)
+            if isinstance(p[opt], basestring):
+                p[opt] = safe_eval(p[opt])
             if isinstance(p[opt], dict):
                 # convert to a list of 1 dict
                 # then we handle lists
@@ -322,7 +347,8 @@ def _get_command_options(module, options=[], required=[]):
             elif p[opt] is None:
                 devopts = []
             else:
-                module.fail_json(msg="Error parsing complex variable %s" % opt)
+                module.fail_json(msg="Error parsing complex variable %s == %s" %
+                                 (opt, p[opt]))
 
             # devopts now is a list of dicts holding device multi-options parameters
             for devicenum in range(len(devopts)):

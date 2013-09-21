@@ -108,8 +108,8 @@ def get_pids(module):
     pids = []
     lines = out.split("\n")
     for line in lines:
-        # exclude ps itself, hacking/test-module script and ps output header
-        if pattern in line and not "name=" in line and not 'PID' in line:
+        # exclude ps itself, hacking/test-module script
+        if pattern in line and not 'test-module' in line:
             # add second PID column to list
             pids.extend([line.split()[1]])
     return pids

@@ -17,21 +17,25 @@
 
 import time
 
-def timestamp():
-
-    print time.strftime('%A %d %B %Y  %H:%M:%S %z')
+# define start time
+t0 = tn = time.time()
 
 def secondsToStr(t):
-    # http://bytes.com/topic/python/answers/635958-handy-short-cut-formatting-elapsed-time-floating-point-seconds
 
+    # http://bytes.com/topic/python/answers/635958-handy-short-cut-formatting-elapsed-time-floating-point-seconds
     rediv = lambda ll,b : list(divmod(ll[0],b)) + ll[1:]
     return "%d:%02d:%02d.%03d" % tuple(reduce(rediv,[[t*1000,], 1000,60,60]))
 
 
+def timestamp():
+
+    global tn
+    print '%s (%s)' % (time.strftime('%A %d %B %Y  %H:%M:%S %z'), secondsToStr(time.time() - tn))
+    tn = time.time()
+
+
 # early timestamp
 timestamp()
-
-t0 = time.time()
 
 
 class CallbackModule(object):
@@ -109,6 +113,7 @@ class CallbackModule(object):
         pass
 
     def playbook_on_stats(self, stats):
+        timestamp()
         print "Total elapsed time: %s" % secondsToStr(time.time() - t0)
         pass
 

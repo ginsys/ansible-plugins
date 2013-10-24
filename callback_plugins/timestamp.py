@@ -16,6 +16,7 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
+from ansible.callbacks import display
 
 # define start time
 t0 = tn = time.time()
@@ -26,11 +27,25 @@ def secondsToStr(t):
     rediv = lambda ll,b : list(divmod(ll[0],b)) + ll[1:]
     return "%d:%02d:%02d.%03d" % tuple(reduce(rediv,[[t*1000,], 1000,60,60]))
 
+def filled(msg, fchar="*"):
+
+    if len(msg) == 0:
+        width = 79
+    else:
+        msg = "%s " % msg
+        width = 79 - len(msg)
+    if width < 3:
+        width = 3 
+    filler = fchar * width
+    return "%s%s " % (msg, filler)
 
 def timestamp():
 
     global tn
-    print '%s (%s)' % (time.strftime('%A %d %B %Y  %H:%M:%S %z'), secondsToStr(time.time() - tn))
+    time_current = time.strftime('%A %d %B %Y  %H:%M:%S %z')
+    time_current_filled = time_current + " " * (50 - len(time_current))
+    time_elapsed = secondsToStr(time.time() - tn)
+    display( filled( '%s %s' % (time_current_filled, time_elapsed) ))
     tn = time.time()
 
 
@@ -110,10 +125,12 @@ class CallbackModule(object):
 
     def playbook_on_play_start(self, pattern):
         timestamp()
+        display(filled("", fchar="*"))
         pass
 
     def playbook_on_stats(self, stats):
         timestamp()
-        print "Total elapsed time: %s" % secondsToStr(time.time() - t0)
+        display(filled( "Total Time: " + 39 * " " + "%s" % secondsToStr(time.time() - t0) ) )
+        display(filled("", fchar="*"))
         pass
 

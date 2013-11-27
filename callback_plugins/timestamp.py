@@ -43,14 +43,11 @@ def timestamp():
 
     global tn
     time_current = time.strftime('%A %d %B %Y  %H:%M:%S %z')
-    time_current_filled = time_current + " " * (50 - len(time_current))
     time_elapsed = secondsToStr(time.time() - tn)
-    display( filled( '%s %s' % (time_current_filled, time_elapsed) ))
+    time_total_elapsed = secondsToStr(time.time() - t0)
+    display( filled( '%s (%s)%s%s' % (time_current, time_elapsed, ' ' * 7, time_total_elapsed )))
     tn = time.time()
 
-
-# early timestamp
-timestamp()
 
 
 class CallbackModule(object):
@@ -125,12 +122,11 @@ class CallbackModule(object):
 
     def playbook_on_play_start(self, pattern):
         timestamp()
-        display(filled("", fchar="*"))
+        display(filled("", fchar="="))
         pass
 
     def playbook_on_stats(self, stats):
         timestamp()
-        display(filled( "Total Time: " + 39 * " " + "%s" % secondsToStr(time.time() - t0) ) )
-        display(filled("", fchar="*"))
+        display(filled("", fchar="="))
         pass
 

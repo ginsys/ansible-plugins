@@ -131,7 +131,10 @@ def enforce_state(module, params):
     for key in wanted_config:
         value = wanted_config[key]
         if isinstance(value, bool):
-            wanted_config[key] = 'yes' if value else 'no'
+            if value:
+                wanted_config[key] = 'yes'
+            else:
+                wanted_config[key] = 'no'
 
     current_config = get_selections(module, params["pkg"])
 

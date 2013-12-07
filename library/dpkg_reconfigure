@@ -76,7 +76,12 @@ def get_selections(module, pkg):
         for answer in out.split('\n'):
             item = re.search('^[* ] ([^:]+): (.*)$', answer)
             if item:
-                selections[ item.group(1).strip() ] = item.group(2).strip()
+                value = item.group(2).strip()
+                if value == 'true':
+                    value = 'yes'
+                elif value == 'false':
+                    value = 'no'
+                selections[ item.group(1).strip() ] = value
         return selections
     else:
         module.fail_json(msg=err)
@@ -122,6 +127,14 @@ def enforce_state(module, params):
                  wanted_config[ item[0].strip() ] = ' '.join(item[1:])
             elif len(item) == 1:
                  wanted_config[ item[0].strip() ] = ''
+
+    for key in wanted_config:
+        value = wanted_config[key]
+        if isinstance(value, bool):
+            if value:
+                wanted_config[key] = 'yes'
+            else:
+                wanted_config[key] = 'no'
 
     current_config = get_selections(module, params["pkg"])
 

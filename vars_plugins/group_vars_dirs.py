@@ -54,8 +54,9 @@ class VarsModule(object):
 
     def __init__(self, inventory):
         self.inventory = inventory
+        self.group_cache = {}
 
-    def run(self, host):
+    def run(self, host, vault_password=None):
         # return the inventory variables for the host
 
         inventory = self.inventory
@@ -72,21 +73,26 @@ class VarsModule(object):
         results = {}
 
         # load vars in inventory_dir/group_vars/name_of_group
-        for x in groups:
-            group_vars_dir = os.path.join(basedir, "group_vars")
-            group_vars_files = vars_files(group_vars_dir, x)
-            if len(group_vars_files) > 1:
-                raise errors.AnsibleError("Found more than one file for group '%s': %s"
-                                  % (x, group_vars_files))
-            for path in group_vars_files:
-                data = utils.parse_yaml_from_file(path)
-                if type(data) != dict:
-                    raise errors.AnsibleError("%s must be stored as a dictionary/hash" % path)
-                if C.DEFAULT_HASH_BEHAVIOUR == "merge":
-                    # let data content override results if needed
-                    results = utils.merge_hash(results, data)
-                else:
-                    results.update(data)
+        for group in groups:
+            if group in self.group_cache:
+                results = self.group_cache[group]
+            else:
+                print host.name, 'retrieve vars for group', group, 'cache size is now', len(self.group_cache.keys())
+                group_vars_dir = os.path.join(basedir, "group_vars")
+                group_vars_files = vars_files(group_vars_dir, group)
+                #if len(group_vars_files) > 1:
+                #    raise errors.AnsibleError("Found more than one file for group '%s': %s"
+                #                      % (group, group_vars_files))
+                for path in group_vars_files:
+                    data = utils.parse_yaml_from_file(path, vault_password=vault_password)
+                    if type(data) != dict:
+                        raise errors.AnsibleError("%s must be stored as a dictionary/hash" % path)
+                    if C.DEFAULT_HASH_BEHAVIOUR == "merge":
+                        # let data content override results if needed
+                        results = utils.merge_hash(results, data)
+                    else:
+                        results.update(data)
+                self.group_cache[group] = results
 
         # load vars in inventory_dir/hosts_vars/name_of_host
         host_vars_dir = os.path.join(basedir, "host_vars")
@@ -95,7 +101,7 @@ class VarsModule(object):
             raise errors.AnsibleError("Found more than one file for host '%s': %s"
                                   % (host.name, host_vars_files))
         for path in host_vars_files:
-            data = utils.parse_yaml_from_file(path)
+            data = utils.parse_yaml_from_file(path, vault_password=vault_password)
             if type(data) != dict:
                 raise errors.AnsibleError("%s must be stored as a dictionary/hash" % path)
             if C.DEFAULT_HASH_BEHAVIOUR == "merge":

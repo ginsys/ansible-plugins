@@ -77,7 +77,6 @@ class VarsModule(object):
             if group in self.group_cache:
                 results = self.group_cache[group]
             else:
-                print host.name, 'retrieve vars for group', group, 'cache size is now', len(self.group_cache.keys())
                 group_vars_dir = os.path.join(basedir, "group_vars")
                 group_vars_files = vars_files(group_vars_dir, group)
                 #if len(group_vars_files) > 1:

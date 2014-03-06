@@ -93,7 +93,7 @@ class Cli(object):
             sys.exit(1)
         groups = I.get_groups()
 
-        if options.listhosts:
+        if options.listhosts and not options.listgroups:
             for host in hosts:
                 print '%s' % host
             sys.exit(0)
@@ -103,16 +103,12 @@ class Cli(object):
 
             def print_group_tree(group):
 
-                # print parent
-                print '%s %s(%s)' % ('.' * group.depth, group.name, group.depth)
-                #print '%s %s(%s) | p: %s | c:%s' % ('.' * group.depth, group.name,  group.depth,
-                #        ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]),
-                #        ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.child_groups ]) ) 
-
+                print '%s (%s) %s%s( parents: %s )' % ('+' * group.depth, group.depth, group.name, ' .' * (23 - group.depth - len(group.name)/2), ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]))
+                ch = [h.name for h in group.hosts]
+                if options.listhosts and len(ch) > 0:
+                    print  '%s [ %s ]' % (' ' * (group.depth + 6) + '\\' + '_' * (35-group.depth), ','.join(ch))
                 for child in group.child_groups:
-                    # add only direct childs, 1 deeper than parent
-                    if child.depth == group.depth +1:
-                        print_group_tree(child)
+                    print_group_tree(child)
 
             basegroup = I.get_group(pattern)
             print_group_tree(basegroup)

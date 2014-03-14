@@ -61,6 +61,8 @@ class Cli(object):
             help="dump out a list of hosts matching input pattern")
         parser.add_option('--list-groups', dest='listgroups', action='store_true',
             help="dump out the list of groups")
+        parser.add_option('-t', '--tree', dest='tree', action='store_true',
+            help="dump a treeview of groups and hosts")
         parser.add_option('-l', '--limit', default=C.DEFAULT_SUBSET, dest='subset',
             help='further limit selected hosts to an additional pattern')
 
@@ -96,17 +98,30 @@ class Cli(object):
         if options.listhosts and not options.listgroups:
             for host in hosts:
                 print '%s' % host
-            sys.exit(0)
 
+        elif options.listgroups or options.tree:
 
-        if options.listgroups:
+            if options.tree:
+                options.listhosts = True
+
+            def print_depth(name, depth, extra=""):
+
+                if depth !=  0:
+                    tree = "|  " * (depth-1) + "|--"
+                else:
+                    tree = ""
+                print "%s[%s] %s %s" % (tree, depth, name, extra)
+
 
             def print_group_tree(group):
 
-                print '%s (%s) %s%s( parents: %s )' % ('+' * group.depth, group.depth, group.name, ' .' * (23 - group.depth - len(group.name)/2), ','.join([ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]))
-                ch = [h.name for h in group.hosts]
-                if options.listhosts and len(ch) > 0:
-                    print  '%s [ %s ]' % (' ' * (group.depth + 6) + '\\' + '_' * (35-group.depth), ','.join(ch))
+                parent_groups_names = [ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]
+                groups_hosts_names = [h.name for h in group.hosts]
+
+                print_depth(group.name, group.depth)
+                if options.listhosts and len(groups_hosts_names) > 0:
+                    for h in groups_hosts_names:
+                        print_depth(h, group.depth+1)
                 for child in group.child_groups:
                     print_group_tree(child)
 
@@ -114,13 +129,13 @@ class Cli(object):
             print_group_tree(basegroup)
             sys.exit(0)
 
+        else:
+            results = { }
+            for host in hosts:
+                vars = I.get_variables(host)
+                results.update({host: vars})
 
-        results = { }
-        for host in hosts:
-            vars = I.get_variables(host)
-            results.update({host: vars})
-
-        return results
+            return results
 
 ########################################################
 

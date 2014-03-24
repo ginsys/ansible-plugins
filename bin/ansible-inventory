@@ -37,7 +37,7 @@ def flatten(terms):
             ret.extend(term)
         else:
             ret.append(term)
-    return ret 
+    return ret
 
 class Cli(object):
 
@@ -65,6 +65,8 @@ class Cli(object):
             help="dump a treeview of groups and hosts")
         parser.add_option('-l', '--limit', default=C.DEFAULT_SUBSET, dest='subset',
             help='further limit selected hosts to an additional pattern')
+        parser.add_option('-d', '--depth', default=C.DEFAULT_SUBSET, dest='depth',
+            help='when listing tree or groups, don\'t go deeper than depth')
 
         parser.add_option('-y', '--yaml', dest='yaml', action='store_true',
             help="dump out variables in yaml format")
@@ -85,14 +87,11 @@ class Cli(object):
     def run(self, options, args):
 
         pattern = args[0]
-        
+
         I = inventory.Inventory(options.inventory)
         if options.subset:
             I.subset(options.subset)
         hosts = I.list_hosts(pattern)
-        if len(hosts) == 0:
-            print >>sys.stderr, "No hosts matched"
-            sys.exit(1)
         groups = I.get_groups()
 
         if options.listhosts and not options.listgroups:
@@ -100,6 +99,11 @@ class Cli(object):
                 print '%s' % host
 
         elif options.listgroups or options.tree:
+
+            if options.depth:
+                maxdepth = int(options.depth)
+            else:
+                maxdepth = None
 
             if options.tree:
                 options.listhosts = True
@@ -113,20 +117,21 @@ class Cli(object):
                 print "%s[%s] %s %s" % (tree, depth, name, extra)
 
 
-            def print_group_tree(group):
+            def print_group_tree(group, maxdepth):
 
-                parent_groups_names = [ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]
-                groups_hosts_names = [h.name for h in group.hosts]
+                if maxdepth is None or group.depth <= maxdepth:
+                    parent_groups_names = [ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]
+                    groups_hosts_names = [h.name for h in group.hosts]
 
-                print_depth(group.name, group.depth)
-                if options.listhosts and len(groups_hosts_names) > 0:
-                    for h in groups_hosts_names:
-                        print_depth(h, group.depth+1)
-                for child in group.child_groups:
-                    print_group_tree(child)
+                    print_depth(group.name, group.depth)
+                    if options.listhosts and len(groups_hosts_names) > 0:
+                        for h in groups_hosts_names:
+                            print_depth(h, group.depth+1)
+                    for child in group.child_groups:
+                        print_group_tree(child, maxdepth)
 
             basegroup = I.get_group(pattern)
-            print_group_tree(basegroup)
+            print_group_tree(basegroup, maxdepth)
             sys.exit(0)
 
         else:

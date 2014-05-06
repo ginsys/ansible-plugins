@@ -216,9 +216,9 @@ class Cli(object):
             results[group.name] = dict(children=child_groups_list, hosts=host_list)
 
         # get hostvars from inventory scripts through --host parameter
-        #if I.parser is not None:
-        #    for host in hosts:
-        #        results['_meta']['hostvars'][host] = I.parser.get_host_variables(I.get_host(host))
+        if I.parser is not None:
+            for host in hosts:
+                results['_meta']['hostvars'][host] = I.parser.get_host_variables(I.get_host(host))
 
         # get hostvars from vars_plugins? No can do,
         # vars_plugins only load vars per host, and we want them per original

@@ -102,7 +102,7 @@ def dpkg_reconfigure(module, pkg, wanted_config):
     cmd = [ 'EDITOR=%s DEBIAN_FRONTEND=editor' % outsock_path ]
     cmd.append(module.get_bin_path('dpkg-reconfigure', True))
     cmd.append(pkg)
-    rc, out, err = module.run_command(' '.join(cmd))
+    rc, out, err = module.run_command(' '.join(cmd), use_unsafe_shell=True)
     os.unlink(outsock_path)
 
     if rc == 0:

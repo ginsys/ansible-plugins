@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-# (c) 2012, Michael DeHaan <michael.dehaan@gmail.com>
-# (c) 2013, Serge van Ginderachter <serge@vanginderachter.be>
+# (c) 2013-2014, Serge van Ginderachter <serge@vanginderachter.be>
 #
 # This file was based on bin/ansible
 #

@@ -21,6 +21,9 @@
 ########################################################
 
 import sys
+import os
+import stat
+import errno
 import yaml
 
 import ansible.constants as C
@@ -30,131 +33,164 @@ from ansible import inventory
 
 ########################################################
 
-def flatten(terms):
-    ret = []
-    for term in terms:
-        if isinstance(term, list):
-            ret.extend(term)
-        else:
-            ret.append(term)
-    return ret
 
 class Cli(object):
 
     # ----------------------------------------------
 
     def __init__(self):
-        pass
+        self.parse()
 
     # ----------------------------------------------
 
     def parse(self):
-        ''' create an options parser for bin/ansible '''
 
         parser = utils.SortedOptParser(
             usage='%prog <host-pattern> [options]'
         )
+        parser.add_option('-l', '--limit', default=C.DEFAULT_SUBSET, dest='subset',
+            help='further limit selected hosts to an additional pattern')
         parser.add_option('-i', '--inventory-file', dest='inventory',
             help="specify inventory host file (default=%s)" % C.DEFAULT_HOST_LIST,
             default=C.DEFAULT_HOST_LIST)
-        parser.add_option('--list-hosts', dest='listhosts', action='store_true',
-            help="dump out a list of hosts matching input pattern")
-        parser.add_option('--list-groups', dest='listgroups', action='store_true',
-            help="dump out the list of groups")
-        parser.add_option('-t', '--tree', dest='tree', action='store_true',
-            help="dump a treeview of groups and hosts")
-        parser.add_option('-l', '--limit', default=C.DEFAULT_SUBSET, dest='subset',
-            help='further limit selected hosts to an additional pattern')
-        parser.add_option('-d', '--depth', default=C.DEFAULT_SUBSET, dest='depth',
-            help='when listing tree or groups, don\'t go deeper than depth')
-
+        # dump
         parser.add_option('-y', '--yaml', dest='yaml', action='store_true',
-            help="dump out variables in yaml format")
-
-        parser.add_option('-j', '--json', dest='json', action='store_true',
-            help="dump out variables in json format (default)")
+            help="dump variables in yaml format")
+        parser.add_option('-j', '--json', '--list', dest='json', action='store_true',
+            help="dump variables in InventoryScript json format")
+        parser.add_option('-p', '--pretty', dest='pretty', action='store_true',
+            help="dump variables in pretty InventoryScript json format")
+        parser.add_option('-m', '--merge', dest='merge', action='store_true',
+            help="when dumping, merge host and group variables into host variables")
+        parser.add_option('--host', dest='host', action='store_true',
+            help="n/a for backwards compatibility as ansible inventory script")
+        # tree
+        parser.add_option('-t', '--tree', dest='tree', action='store_true',
+            help="print a tree/forst view of the inventory")
+        parser.add_option('-n', '--nodes', dest='nodes', action='store_true',
+            help="also show nodes when printing the inventory tree")
+        parser.add_option('-d', '--depth', dest='depth',
+            help="limit the inventory tree to this given depth")
 
         options, args = parser.parse_args()
-        if len(args) == 0:
-            args = ['all']
-        if len(args) > 1:
+        # need one of these options at least
+        if not (options.yaml or
+                options.json or
+                options.pretty or
+                options.host or
+                options.tree
+                ) or len(args) > 1:
             parser.print_help()
             sys.exit(1)
-        return (options, args)
+        # only 1 arg needed, save it as an option
+        if len(args) == 0:
+            options.pattern = 'all'
+        else:
+            options.pattern = args[0]
+        if options.pretty:
+            options.json = True
+
+        self.options = options
 
     # ----------------------------------------------
 
-    def run(self, options, args):
+    def inv_init(self):
 
-        pattern = args[0]
+        if self.options.host:
+            return {}
 
-        I = inventory.Inventory(options.inventory)
-        if options.subset:
-            I.subset(options.subset)
-        hosts = I.list_hosts(pattern)
-        groups = I.get_groups()
+        self.inventory = inventory.Inventory(self.options.inventory)
+        if self.options.subset:
+            self.inventory.subset(self.options.subset)
+        hosts = self.inventory.list_hosts(self.options.pattern)
+        if len(hosts) == 0:
+            print >>sys.stderr, "No hosts matched"
+            sys.exit(1)
 
-        if options.listhosts and not options.listgroups:
-            for host in hosts:
-                print '%s' % host
 
-        elif options.listgroups or options.tree:
+    def dump(self):
 
-            if options.depth:
-                maxdepth = int(options.depth)
+        results = {'_meta': {'hostvars': {}}}
+
+        # get inventory groups, their vars, children and hosts into result set
+        groups = self.inventory.get_groups()
+        for group in groups:
+            host_list = [h.name for h in group.hosts ]
+            child_groups_list = [g.name for g in group.child_groups ]
+            results[group.name] = dict(children=child_groups_list, hosts=host_list)
+            # get groupvars into result set
+            if not self.options.merge:
+                results[group.name]['vars'] = group.get_variables()
+
+        # get hostvars into result set
+        for host in self.inventory.get_hosts():
+            if not self.options.merge:
+                results['_meta']['hostvars'][host.name] = host.vars
             else:
-                maxdepth = None
-
-            if options.tree:
-                options.listhosts = True
-
-            def print_depth(name, depth, extra=""):
-
-                if depth !=  0:
-                    tree = "|  " * (depth-1) + "|--"
-                else:
-                    tree = ""
-                print "%s[%s] %s %s" % (tree, depth, name, extra)
+                results['_meta']['hostvars'][host.name] = host.get_variables()
 
 
-            def print_group_tree(group, maxdepth):
-
-                if maxdepth is None or group.depth <= maxdepth:
-                    parent_groups_names = [ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]
-                    groups_hosts_names = [h.name for h in group.hosts]
-
-                    print_depth(group.name, group.depth)
-                    if options.listhosts and len(groups_hosts_names) > 0:
-                        for h in groups_hosts_names:
-                            print_depth(h, group.depth+1)
-                    for child in group.child_groups:
-                        print_group_tree(child, maxdepth)
-
-            basegroup = I.get_group(pattern)
-            print_group_tree(basegroup, maxdepth)
-            sys.exit(0)
-
+        if self.options.yaml:
+            print yaml.safe_dump(results)
         else:
-            results = { }
-            for host in hosts:
-                vars = I.get_variables(host)
-                results.update({host: vars})
+            print utils.jsonify(results, format=self.options.pretty)
 
-            return results
+        return results
+
+    # ----------------------------------------------
+
+    def tree(self):
+
+        if self.options.depth:
+            maxdepth = int(self.options.depth)
+        else:
+            maxdepth = None
+
+        def print_depth(name, depth, extra=""):
+
+            if depth !=  0:
+                tree = "|  " * (depth-1) + "|--"
+            else:
+                tree = ""
+            print "%s %s %s" % (tree, name, extra)
+
+
+        def print_group_tree(group, maxdepth):
+
+            if maxdepth is None or group.depth <= maxdepth:
+                parent_groups_names = [ '%s(%s)' % (x.name, x.depth) for x in group.parent_groups ]
+                groups_hosts_names = [h.name for h in group.hosts]
+
+                print_depth(group.name, group.depth)
+                for child in group.child_groups:
+                    print_group_tree(child, maxdepth)
+                if self.options.nodes and len(groups_hosts_names) > 0:
+                    for h in groups_hosts_names:
+                        print_depth(h, group.depth+1)
+
+        basegroup = self.inventory.get_group(self.options.pattern)
+        print_group_tree(basegroup, maxdepth)
+
+    # ----------------------------------------------
+
+    def run(self):
+        if self.options.host:
+            print '{}'
+        elif self.options.json or cli.options.yaml:
+            cli.inv_init()
+            results = cli.dump()
+        elif self.options.tree:
+            cli.inv_init()
+            results = cli.tree()
 
 ########################################################
 
 if __name__ == '__main__':
-    cli = Cli()
-    (options, args) = cli.parse()
     try:
-        results = cli.run(options, args)
+        cli = Cli()
+        cli.run()
     except errors.AnsibleError, e:
         # Generic handler for ansible specific errors
         print "ERROR: %s" % str(e)
         sys.exit(1)
-    if options.json and not options.yaml:
-        print utils.jsonify(results, format=True)
-    else:
-        print yaml.safe_dump(results)
 

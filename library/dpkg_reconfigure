@@ -88,9 +88,11 @@ def get_selections(module, pkg):
 
 
 def dpkg_reconfigure(module, pkg, wanted_config):
-    editor_script = [ '#!/bin/sh', 'cat > $1 <<EOF' ]
-    for answer in wanted_config:
-        editor_script.append('%s="%s"' % (answer, wanted_config[answer]))
+    editor_script = [ '#!/bin/sh', 'sed -i "$1" -f - <<EOF' ]
+    for question in wanted_config:
+        e_question = re.sub(r'([\\/&])', r'\\\1', question)
+        e_answer = re.sub(r'([\\/&])', r'\\\1', wanted_config[question])
+        editor_script.append('s/^\\(%s\\)\\s*=.*/\\1="%s"/' % (e_question, e_answer))
     editor_script.append('EOF')
 
     outfd, outsock_path = tempfile.mkstemp()

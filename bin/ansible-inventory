@@ -213,7 +213,7 @@ class InventoryCLI(CLI):
                     print_group_tree(child, maxdepth)
                 if self.options.nodes and len(groups_hosts_names) > 0:
                     for h in groups_hosts_names:
-                        print_depth(h, group.depth+1)
+                        print_depth(h+'*', group.depth+1)
 
         basegroup = self.inventory.get_group(self.options.pattern)
         print_group_tree(basegroup, maxdepth)

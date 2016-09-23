@@ -160,7 +160,7 @@ class InventoryCLI(CLI):
 
         # get inventory groups, their vars, children and hosts into result set
         groups = self.inventory.get_groups()
-        for group in groups:
+        for group in groups.values():
             host_list = [h.name for h in group.hosts ]
             child_groups_list = [g.name for g in group.child_groups ]
             results[group.name] = dict(children=child_groups_list, hosts=host_list)
@@ -169,7 +169,8 @@ class InventoryCLI(CLI):
                 results[group.name]['vars'] = group.get_vars()
 
         # get hostvars into result set
-        for host in self.inventory.get_hosts():
+        hosts = self.inventory.get_hosts()
+        for host in hosts:
             if not self.options.merge:
                 results['_meta']['hostvars'][host.name] = host.vars
             else:

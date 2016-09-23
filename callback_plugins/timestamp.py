@@ -15,17 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
-from ansible.callbacks import display
+from ansible.plugins.callback import CallbackBase
+import datetime
 
 # define start time
-t0 = tn = time.time()
-
-def secondsToStr(t):
-
-    # http://bytes.com/topic/python/answers/635958-handy-short-cut-formatting-elapsed-time-floating-point-seconds
-    rediv = lambda ll,b : list(divmod(ll[0],b)) + ll[1:]
-    return "%d:%02d:%02d.%03d" % tuple(reduce(rediv,[[t*1000,], 1000,60,60]))
+t0 = tn = datetime.datetime.utcnow()
 
 def filled(msg, fchar="*"):
 
@@ -42,15 +36,16 @@ def filled(msg, fchar="*"):
 def timestamp():
 
     global tn
-    time_current = time.strftime('%A %d %B %Y  %H:%M:%S %z')
-    time_elapsed = secondsToStr(time.time() - tn)
-    time_total_elapsed = secondsToStr(time.time() - t0)
-    display( filled( '%s (%s)%s%s' % (time_current, time_elapsed, ' ' * 7, time_total_elapsed )))
-    tn = time.time()
+    time_current = datetime.datetime.utcnow()
+    time_elapsed = (time_current - tn).total_seconds()
+    time_total_elapsed = (time_current - t0).total_seconds()
+    print( filled( '%s (delta: %s) %s elapsed: %s' % (time_current.isoformat(),
+                                    time_elapsed, ' ' * 7, time_total_elapsed )))
+    tn = datetime.datetime.utcnow()
 
 
 
-class CallbackModule(object):
+class CallbackModule(CallbackBase):
 
     """
     this is an example ansible callback file that does nothing.  You can drop
@@ -122,11 +117,11 @@ class CallbackModule(object):
 
     def playbook_on_play_start(self, pattern):
         timestamp()
-        display(filled("", fchar="="))
+        self._display.display(filled("", fchar="="))
         pass
 
     def playbook_on_stats(self, stats):
         timestamp()
-        display(filled("", fchar="="))
+        self._display.display(filled("", fchar="="))
         pass
 
